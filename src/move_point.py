@@ -1,4 +1,7 @@
 import os
+
+os.environ["PROJ_LIB"] = "/Applications/QGIS-LTR.app/Contents/Resources/proj"
+
 import sys
 import argparse
 from typing import Optional
@@ -47,7 +50,7 @@ def get_sorted_rectangles(rect_layer: QgsVectorLayer) -> list[QgsFeature]:
     Returns:
         Отсортированный список объектов QgsFeature.
     """
-    rectangles = list(rect_layer.getFeatures())
+    rectangles = [r for r in rect_layer.getFeatures() if r.hasGeometry()]
     # Сортируем по X-координате центроида
     rectangles.sort(key=lambda r: r.geometry().centroid().asPoint().x())
     print(f"Найдено и отсортировано {len(rectangles)} прямоугольников.")
@@ -184,7 +187,7 @@ def process_layers(points_path: str, rects_path: str) -> bool:
     point_layer = load_layer(points_path, "points")
     rect_layer = load_layer(rects_path, "rectangles")
 
-    if not point_layer or not rect_layer:
+    if point_layer is None or rect_layer is None:
         return False
 
     # Основная логика
@@ -206,33 +209,35 @@ def main():
     """
     Главная функция для выполнения скрипта.
     """
-    parser = argparse.ArgumentParser(
-        description="Перемещает точки из одного прямоугольника в следующий.",
-        formatter_class=argparse.RawTextHelpFormatter,
-        epilog="""
-Пример использования:
-  python src/move_point.py --points data/points.gpkg --rects data/rectangles.gpkg
-""",
-    )
-    parser.add_argument("--points", required=True, help="Путь к слою с точками (.gpkg)")
-    parser.add_argument(
-        "--rects", required=True, help="Путь к слою с прямоугольниками (.gpkg)"
-    )
-    args = parser.parse_args()
-
-    # Инициализация QGIS
     qgs = QgsApplication([], False)
     qgs.initQgis()
-    print("QGIS инициализирован.")
 
     try:
+        parser = argparse.ArgumentParser(
+            description="Перемещает точки из одного прямоугольника в следующий.",
+            formatter_class=argparse.RawTextHelpFormatter,
+            epilog="""
+    Пример использования:
+    python src/move_point.py --points data/points.gpkg --rects data/rectangles.gpkg
+    """,
+        )
+        parser.add_argument(
+            "--points", required=True, help="Путь к слою с точками (.gpkg)"
+        )
+        parser.add_argument(
+            "--rects", required=True, help="Путь к слою с прямоугольниками (.gpkg)"
+        )
+        args = parser.parse_args()
+
         success = process_layers(args.points, args.rects)
-        if not success:
+        if success:
+            print("\n=== Обработка завершена успешно! ===")
+        else:
+            print("\n=== Обработка завершена с ошибками! ===")
             sys.exit(1)
+
     finally:
-        # Очистка
         qgs.exitQgis()
-        print("QGIS деинициализирован.")
 
 
 if __name__ == "__main__":
